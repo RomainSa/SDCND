@@ -2,9 +2,40 @@
 
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
+from moviepy.editor import VideoFileClip
 import numpy as np
 import cv2
 import os
+
+
+global parameters
+
+parameters = \
+    {
+        'debug': False,
+        'output_filter': False,
+        'plot_output': False,
+        'test_image_index': -1,
+        # convert to grayscale
+        'grayscale': True,
+        # smoothing
+        'smoothing': True,
+        'kernel_size': 5,
+        # Canny
+        'canny': True,
+        'low_threshold': 50,
+        'high_threshold': 150,
+        # (normalized) RoI mask vertices
+        'mask': True,
+        'norm_vertices': np.array([[(0.05, 1), (0.95, 1), (0.51, 0.55), (0.49, 0.55)]]),
+        # Hough transform
+        'hough': True,
+        'rho': 1,
+        'theta': np.pi / 180,
+        'threshold': 50,        # 50
+        'min_line_len': 200,    # 200
+        'max_line_gap': 5       # 5
+    }
 
 
 def grayscale(img):
@@ -105,20 +136,58 @@ def weighted_img(img, initial_img, alpha_=0.8, beta_=1., lambda_=0.):
     return cv2.addWeighted(initial_img, alpha_, img, beta_, lambda_)
 
 
-def pipeline(filepath):
+def process_image(image):
+    global parameters
     # reading in an image
-    image = mpimg.imread(filepath)
-    # printing out some stats and plotting
-    print('This image is:', type(image), 'with dimesions:', image.shape)
-    plt.imshow(image)
-    plt.show()
+    modified_image = image.copy()
     # to grayscale
+    if parameters['grayscale']:
+        modified_image = grayscale(modified_image)
     # gaussian smoothing
+    if parameters['smoothing']:
+        modified_image = gaussian_blur(modified_image, parameters['kernel_size'])
     # Canny edge detection
-    # Hough transform
+    if parameters['canny']:
+        modified_image = canny(modified_image, parameters['low_threshold'], parameters['high_threshold'])
+    # Hough transform (returns a 3-D image)
+    if parameters['hough']:
+        modified_image = hough_lines(modified_image, parameters['rho'], parameters['theta'], parameters['threshold'],
+                                     parameters['min_line_len'], parameters['max_line_gap'])
     # region of interest
+    if parameters['mask']:
+        norm_vertices = parameters['norm_vertices'].copy()
+        norm_vertices[:, :, 0] *= modified_image.shape[1]
+        norm_vertices[:, :, 1] *= modified_image.shape[0]
+        vertices = norm_vertices.astype(int)
+        modified_image = region_of_interest(modified_image, vertices)
+    # output
+    output_image = image.copy()
+    if parameters['output_filter']:
+        output_image = modified_image.copy()
+    else:
+        # applies filter to input image
+        mask = modified_image.copy()
+        mask[mask > 0] = 1
+        np.place(output_image, mask, 255)
+    if parameters['plot_output']:
+        plt.imshow(output_image)
+        plt.show()
+    return output_image
 
-# pipeline
-test_images = ["test_images/" + f for f in os.listdir("test_images/")]
-test_image = test_images[0]
-pipeline(test_image)
+
+if __name__ == '__main__':
+    if parameters['debug']:
+        test_images_paths = ["test_images/" + f for f in os.listdir("test_images/")]
+        if parameters['test_image_index'] >= 0:
+            test_image_path = test_images_paths[parameters['test_image_index']]
+            test_image = mpimg.imread(test_image_path)
+            process_image(test_image)
+        else:
+            for test_image_path in test_images_paths:
+                test_image = mpimg.imread(test_image_path)
+                process_image(test_image)
+    else:
+        white_output = 'white.mp4'
+        clip1 = VideoFileClip("solidWhiteRight.mp4")
+        white_clip = clip1.fl_image(process_image) #NOTE: this function expects color images!!
+        white_clip.write_videofile(white_output, audio=False)
