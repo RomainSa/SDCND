@@ -15,27 +15,32 @@ parameters = \
         'output_filter': True,
         'plot_output': True,
         'cmap': 'gray',
-        'test_image_index': -1,
+        'test_image_index': 1,
         # convert to grayscale
         'grayscale': True,
         # smoothing
-        'smoothing': True,
+        'smoothing': False,
         'kernel_size': 5,
         # Canny
         'canny': True,
         'low_threshold': 50,        # 50
-        'high_threshold': 150,      # 150
+        'high_threshold': 200,      # 150
         # (normalized) RoI mask vertices
         'mask': True,
-        'norm_vertices': np.array([[(0.05, 1), (0.95, 1), (0.51, 0.55), (0.49, 0.55)]]),
+        'norm_vertices': np.array([[(0.025, 1), (0.975, 1), (0.51, 0.55), (0.49, 0.55)]]),
         # Hough transform
         'hough': True,
         'rho': 1,                   # 1
         'theta': 1*np.pi / 180,     # 1*np.pi/180
-        'threshold': 150,           # 50
+        'threshold': 50,            # 50
         'min_line_len': 200,        # 200
-        'max_line_gap': 5           # 5
-    }
+        'max_line_gap': 200,        # 5
+        # lines angle acceptable values (inverted compared to screen)
+        'min_left': -1.,
+        'max_left': -0.2,
+        'min_right': 0.2,
+        'max_right': 1.
+}
 
 
 def grayscale(img):
@@ -84,7 +89,7 @@ def region_of_interest(img, vertices):
     return masked_image
 
 
-def draw_lines(img, lines, color=[255, 0, 0], thickness=2):
+def draw_lines(img, lines, color=[255, 0, 0], thickness=8):
     """
     NOTE: this is the function you might want to use as a starting point once you want to
     average/extrapolate the line segments you detect to map out the full
@@ -101,9 +106,53 @@ def draw_lines(img, lines, color=[255, 0, 0], thickness=2):
     If you want to make the lines semi-transparent, think about combining
     this function with the weighted_img() function below
     """
+    left_lane_lines = []
+    right_lane_lines = []
+    # separates lines between left and right lane and exclude other ones (horizontal lines for example)
     for line in lines:
         for x1, y1, x2, y2 in line:
-            cv2.line(img, (x1, y1), (x2, y2), color, thickness)
+            # makes sure that (x1, y1) is the lower point (so the higher value)
+            if y1 < y2:
+                temp = y1
+                y1 = y2
+                y2 = temp
+                temp = x1
+                x1 = x2
+                x2 = temp
+            slope = (y2-y1)/float(x2-x1)
+            if parameters['debug']:
+                print(slope)
+            if parameters['min_left'] <= slope <= parameters['max_left']:
+                left_lane_lines.append((x1, y1, x2, y2))
+            elif parameters['min_right'] <= slope <= parameters['max_right']:
+                right_lane_lines.append((x1, y1, x2, y2))
+    # plots an average for each side
+    n_left_lines = len(left_lane_lines)
+    if n_left_lines > 0:
+        left_x1 = sum(x[0] for x in left_lane_lines) / float(n_left_lines)
+        left_y1 = sum(x[1] for x in left_lane_lines) / float(n_left_lines)
+        left_x2 = sum(x[2] for x in left_lane_lines) / float(n_left_lines)
+        left_y2 = sum(x[3] for x in left_lane_lines) / float(n_left_lines)
+        left_slope = (left_y2-left_y1)/float(left_x2-left_x1)
+        left_intercept = left_y1 - left_slope * left_x1
+        left_y1 = img.shape[0]
+        left_x1 = int((left_y1 - left_intercept) / left_slope)
+        left_y2 = int(left_y2)
+        left_x2 = int(left_x2)
+        cv2.line(img, (left_x1, left_y1), (left_x2, left_y2), color, thickness)
+    n_right_lines = len(right_lane_lines)
+    if n_right_lines > 0:
+        right_x1 = sum(x[0] for x in right_lane_lines) / float(n_right_lines)
+        right_y1 = sum(x[1] for x in right_lane_lines) / float(n_right_lines)
+        right_x2 = sum(x[2] for x in right_lane_lines) / float(n_right_lines)
+        right_y2 = sum(x[3] for x in right_lane_lines) / float(n_right_lines)
+        right_slope = (right_y2-right_y1)/float(right_x2-right_x1)
+        right_intercept = right_y1 - right_slope * right_x1
+        right_y1 = img.shape[0]
+        right_x1 = int((right_y1 - right_intercept) / right_slope)
+        right_y2 = int(right_y2)
+        right_x2 = int(right_x2)
+        cv2.line(img, (right_x1, right_y1), (right_x2, right_y2), color, thickness)
 
 
 def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
