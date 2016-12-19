@@ -13,8 +13,9 @@ global parameters
 parameters = \
     {
         'debug': False,
-        'output_filter': False,
-        'plot_output': False,
+        'output_filter': True,
+        'plot_output': True,
+        'cmap': 'gray',
         'test_image_index': -1,
         # convert to grayscale
         'grayscale': True,
@@ -23,16 +24,16 @@ parameters = \
         'kernel_size': 5,
         # Canny
         'canny': True,
-        'low_threshold': 50,
-        'high_threshold': 150,
+        'low_threshold': 50,    # 50
+        'high_threshold': 150,  # 150
         # (normalized) RoI mask vertices
         'mask': True,
         'norm_vertices': np.array([[(0.05, 1), (0.95, 1), (0.51, 0.55), (0.49, 0.55)]]),
         # Hough transform
         'hough': True,
-        'rho': 1,
-        'theta': np.pi / 180,
-        'threshold': 50,        # 50
+        'rho': 1,               # 1
+        'theta': 1*np.pi / 180, # 1*np.pi/180
+        'threshold': 150,        # 50
         'min_line_len': 200,    # 200
         'max_line_gap': 5       # 5
     }
@@ -115,7 +116,8 @@ def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
     lines = cv2.HoughLinesP(img, rho, theta, threshold, np.array([]), minLineLength=min_line_len,
                             maxLineGap=max_line_gap)
     line_img = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
-    draw_lines(line_img, lines)
+    if lines is not None:
+        draw_lines(line_img, lines)
     return line_img
 
 
@@ -149,10 +151,6 @@ def process_image(image):
     # Canny edge detection
     if parameters['canny']:
         modified_image = canny(modified_image, parameters['low_threshold'], parameters['high_threshold'])
-    # Hough transform (returns a 3-D image)
-    if parameters['hough']:
-        modified_image = hough_lines(modified_image, parameters['rho'], parameters['theta'], parameters['threshold'],
-                                     parameters['min_line_len'], parameters['max_line_gap'])
     # region of interest
     if parameters['mask']:
         norm_vertices = parameters['norm_vertices'].copy()
@@ -160,17 +158,21 @@ def process_image(image):
         norm_vertices[:, :, 1] *= modified_image.shape[0]
         vertices = norm_vertices.astype(int)
         modified_image = region_of_interest(modified_image, vertices)
+    # Hough transform (returns a 3-D image)
+    if parameters['hough']:
+        modified_image = hough_lines(modified_image, parameters['rho'], parameters['theta'], parameters['threshold'],
+                                     parameters['min_line_len'], parameters['max_line_gap'])
     # output
     output_image = image.copy()
-    if parameters['output_filter']:
+    if (parameters['output_filter']):
         output_image = modified_image.copy()
     else:
         # applies filter to input image
         mask = modified_image.copy()
         mask[mask > 0] = 1
         np.place(output_image, mask, 255)
-    if parameters['plot_output']:
-        plt.imshow(output_image)
+    if (parameters['plot_output'] and parameters['debug']):
+        plt.imshow(output_image, cmap=parameters['cmap'])
         plt.show()
     return output_image
 
@@ -188,6 +190,8 @@ if __name__ == '__main__':
                 process_image(test_image)
     else:
         white_output = 'white.mp4'
-        clip1 = VideoFileClip("solidWhiteRight.mp4")
+        filepath = "challenge.mp4"
+        filepath = "solidWhiteRight.mp4"
+        clip1 = VideoFileClip(filepath)
         white_clip = clip1.fl_image(process_image) #NOTE: this function expects color images!!
         white_clip.write_videofile(white_output, audio=False)
