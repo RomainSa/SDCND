@@ -9,7 +9,6 @@ import os
 
 
 global parameters
-
 parameters = \
     {
         'debug': False,
@@ -24,18 +23,18 @@ parameters = \
         'kernel_size': 5,
         # Canny
         'canny': True,
-        'low_threshold': 50,    # 50
-        'high_threshold': 150,  # 150
+        'low_threshold': 50,        # 50
+        'high_threshold': 150,      # 150
         # (normalized) RoI mask vertices
         'mask': True,
         'norm_vertices': np.array([[(0.05, 1), (0.95, 1), (0.51, 0.55), (0.49, 0.55)]]),
         # Hough transform
         'hough': True,
-        'rho': 1,               # 1
-        'theta': 1*np.pi / 180, # 1*np.pi/180
-        'threshold': 150,        # 50
-        'min_line_len': 200,    # 200
-        'max_line_gap': 5       # 5
+        'rho': 1,                   # 1
+        'theta': 1*np.pi / 180,     # 1*np.pi/180
+        'threshold': 150,           # 50
+        'min_line_len': 200,        # 200
+        'max_line_gap': 5           # 5
     }
 
 
@@ -121,8 +120,6 @@ def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
     return line_img
 
 
-# Python 3 has support for cool math symbols.
-
 def weighted_img(img, initial_img, alpha_=0.8, beta_=1., lambda_=0.):
     """
     `img` is the output of the hough_lines(), An image with lines drawn on it.
@@ -164,14 +161,14 @@ def process_image(image):
                                      parameters['min_line_len'], parameters['max_line_gap'])
     # output
     output_image = image.copy()
-    if (parameters['output_filter']):
+    if parameters['output_filter']:
         output_image = modified_image.copy()
     else:
         # applies filter to input image
         mask = modified_image.copy()
         mask[mask > 0] = 1
         np.place(output_image, mask, 255)
-    if (parameters['plot_output'] and parameters['debug']):
+    if parameters['plot_output'] and parameters['debug']:
         plt.imshow(output_image, cmap=parameters['cmap'])
         plt.show()
     return output_image
@@ -193,5 +190,5 @@ if __name__ == '__main__':
         filepath = "challenge.mp4"
         filepath = "solidWhiteRight.mp4"
         clip1 = VideoFileClip(filepath)
-        white_clip = clip1.fl_image(process_image) #NOTE: this function expects color images!!
+        white_clip = clip1.fl_image(process_image)  # NOTE: this function expects color images!!
         white_clip.write_videofile(white_output, audio=False)
