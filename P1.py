@@ -12,24 +12,24 @@ global parameters
 parameters = \
     {
         'debug': False,
-        'output_filter': True,
+        'output_filter': False,
         'plot_output': True,
         'cmap': 'gray',
         'test_image_index': 1,
         # convert to grayscale
-        'grayscale': True,
+        'grayscale': False,
         # smoothing
         'smoothing': False,
         'kernel_size': 5,
         # Canny
-        'canny': True,
+        'canny': False,
         'low_threshold': 50,        # 50
         'high_threshold': 200,      # 150
         # (normalized) RoI mask vertices
         'mask': True,
         'norm_vertices': np.array([[(0.025, 1), (0.975, 1), (0.51, 0.55), (0.49, 0.55)]]),
         # Hough transform
-        'hough': True,
+        'hough': False,
         'rho': 1,                   # 1
         'theta': 1*np.pi / 180,     # 1*np.pi/180
         'threshold': 50,            # 50
@@ -39,8 +39,18 @@ parameters = \
         'min_left': -1.,
         'max_left': -0.2,
         'min_right': 0.2,
-        'max_right': 1.
+        'max_right': 1.,
+        # time memory
+        'memory': 0.1
 }
+
+
+global lanes
+lanes = \
+    {
+    'left': {'x1': 0., 'y1': 0., 'x2': 0., 'y2': 0.},
+    'right': {'x1': 0., 'y1': 0., 'x2': 0., 'y2': 0.}
+    }
 
 
 def grayscale(img):
@@ -127,6 +137,7 @@ def draw_lines(img, lines, color=[255, 0, 0], thickness=8):
             elif parameters['min_right'] <= slope <= parameters['max_right']:
                 right_lane_lines.append((x1, y1, x2, y2))
     # plots an average for each side
+    memory = parameters['memory']
     n_left_lines = len(left_lane_lines)
     if n_left_lines > 0:
         left_x1 = sum(x[0] for x in left_lane_lines) / float(n_left_lines)
@@ -136,10 +147,18 @@ def draw_lines(img, lines, color=[255, 0, 0], thickness=8):
         left_slope = (left_y2-left_y1)/float(left_x2-left_x1)
         left_intercept = left_y1 - left_slope * left_x1
         left_y1 = img.shape[0]
-        left_x1 = int((left_y1 - left_intercept) / left_slope)
-        left_y2 = int(left_y2)
-        left_x2 = int(left_x2)
-        cv2.line(img, (left_x1, left_y1), (left_x2, left_y2), color, thickness)
+        left_x1 = (left_y1 - left_intercept) / left_slope
+        # averages result with previous line
+        lanes['left']['x1'] = int((1-memory) * left_x1 + memory * lanes['left']['x1'])
+        lanes['left']['y1'] = int((1-memory) * left_y1 + memory * lanes['left']['y1'])
+        lanes['left']['x2'] = int((1-memory) * left_x2 + memory * lanes['left']['x2'])
+        lanes['left']['y2'] = int((1-memory) * left_y2 + memory * lanes['left']['y2'])
+        cv2.line(img, (lanes['left']['x1'], lanes['left']['y1']), (lanes['left']['x2'], lanes['left']['y2']),
+                 color, thickness)
+    else:
+        if memory > 0:
+            cv2.line(img, (lanes['left']['x1'], lanes['left']['y1']), (lanes['left']['x2'], lanes['left']['y2']),
+                     color, thickness)
     n_right_lines = len(right_lane_lines)
     if n_right_lines > 0:
         right_x1 = sum(x[0] for x in right_lane_lines) / float(n_right_lines)
@@ -149,10 +168,18 @@ def draw_lines(img, lines, color=[255, 0, 0], thickness=8):
         right_slope = (right_y2-right_y1)/float(right_x2-right_x1)
         right_intercept = right_y1 - right_slope * right_x1
         right_y1 = img.shape[0]
-        right_x1 = int((right_y1 - right_intercept) / right_slope)
-        right_y2 = int(right_y2)
-        right_x2 = int(right_x2)
-        cv2.line(img, (right_x1, right_y1), (right_x2, right_y2), color, thickness)
+        right_x1 = (right_y1 - right_intercept) / right_slope
+        # averages result with previous line
+        lanes['right']['x1'] = int((1 - memory) * right_x1 + memory * lanes['right']['x1'])
+        lanes['right']['y1'] = int((1 - memory) * right_y1 + memory * lanes['right']['y1'])
+        lanes['right']['x2'] = int((1 - memory) * right_x2 + memory * lanes['right']['x2'])
+        lanes['right']['y2'] = int((1 - memory) * right_y2 + memory * lanes['right']['y2'])
+        cv2.line(img, (lanes['right']['x1'], lanes['right']['y1']), (lanes['right']['x2'], lanes['right']['y2']),
+                 color, thickness)
+    else:
+        if memory > 0:
+            cv2.line(img, (lanes['right']['x1'], lanes['right']['y1']), (lanes['right']['x2'], lanes['right']['y2']),
+                     color, thickness)
 
 
 def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
@@ -236,8 +263,8 @@ if __name__ == '__main__':
                 process_image(test_image)
     else:
         white_output = 'white.mp4'
-        filepath = "challenge.mp4"
         filepath = "solidWhiteRight.mp4"
+        filepath = "challenge.mp4"
         clip1 = VideoFileClip(filepath)
         white_clip = clip1.fl_image(process_image)  # NOTE: this function expects color images!!
         white_clip.write_videofile(white_output, audio=False)
