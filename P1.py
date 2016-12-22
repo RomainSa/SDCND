@@ -17,31 +17,31 @@ parameters = \
         'cmap': 'gray',
         'test_image_index': 1,
         # convert to grayscale
-        'grayscale': False,
+        'grayscale': True,
         # smoothing
-        'smoothing': False,
+        'smoothing': True,
         'kernel_size': 5,
         # Canny
-        'canny': False,
+        'canny': True,
         'low_threshold': 50,        # 50
         'high_threshold': 200,      # 150
         # (normalized) RoI mask vertices
         'mask': True,
         'norm_vertices': np.array([[(0.025, 1), (0.975, 1), (0.51, 0.55), (0.49, 0.55)]]),
         # Hough transform
-        'hough': False,
+        'hough': True,
         'rho': 1,                   # 1
         'theta': 1*np.pi / 180,     # 1*np.pi/180
         'threshold': 50,            # 50
-        'min_line_len': 200,        # 200
-        'max_line_gap': 200,        # 5
+        'min_line_len': 250,        # 200
+        'max_line_gap': 200,        # 200
         # lines angle acceptable values (inverted compared to screen)
         'min_left': -1.,
-        'max_left': -0.2,
+        'max_left': -0.5,
         'min_right': 0.2,
         'max_right': 1.,
         # time memory
-        'memory': 0.1
+        'memory': 0.5
 }
 
 
@@ -148,15 +148,23 @@ def draw_lines(img, lines, color=[255, 0, 0], thickness=8):
         left_intercept = left_y1 - left_slope * left_x1
         left_y1 = img.shape[0]
         left_x1 = (left_y1 - left_intercept) / left_slope
+        left_y2 = img.shape[0] * (3 / 5.)
+        left_x2 = (left_y2 - left_intercept) / left_slope
         # averages result with previous line
-        lanes['left']['x1'] = int((1-memory) * left_x1 + memory * lanes['left']['x1'])
-        lanes['left']['y1'] = int((1-memory) * left_y1 + memory * lanes['left']['y1'])
-        lanes['left']['x2'] = int((1-memory) * left_x2 + memory * lanes['left']['x2'])
-        lanes['left']['y2'] = int((1-memory) * left_y2 + memory * lanes['left']['y2'])
+        if (lanes['left']['x1']+lanes['left']['y1']+lanes['left']['x2']+lanes['left']['y2'] > 0):
+            lanes['left']['x1'] = int((1-memory) * left_x1 + memory * lanes['left']['x1'])
+            lanes['left']['y1'] = int((1-memory) * left_y1 + memory * lanes['left']['y1'])
+            lanes['left']['x2'] = int((1-memory) * left_x2 + memory * lanes['left']['x2'])
+            lanes['left']['y2'] = int((1-memory) * left_y2 + memory * lanes['left']['y2'])
+        else:
+            lanes['left']['x1'] = int(left_x1)
+            lanes['left']['y1'] = int(left_y1)
+            lanes['left']['x2'] = int(left_x2)
+            lanes['left']['y2'] = int(left_y2)
         cv2.line(img, (lanes['left']['x1'], lanes['left']['y1']), (lanes['left']['x2'], lanes['left']['y2']),
                  color, thickness)
     else:
-        if memory > 0:
+        if memory > 0 and (lanes['left']['x1']+lanes['left']['y1']+lanes['left']['x2']+lanes['left']['y2'] > 0):
             cv2.line(img, (lanes['left']['x1'], lanes['left']['y1']), (lanes['left']['x2'], lanes['left']['y2']),
                      color, thickness)
     n_right_lines = len(right_lane_lines)
@@ -169,11 +177,19 @@ def draw_lines(img, lines, color=[255, 0, 0], thickness=8):
         right_intercept = right_y1 - right_slope * right_x1
         right_y1 = img.shape[0]
         right_x1 = (right_y1 - right_intercept) / right_slope
+        right_y2 = img.shape[0] * (3 / 5.)
+        right_x2 = (right_y2 - right_intercept) / right_slope
         # averages result with previous line
-        lanes['right']['x1'] = int((1 - memory) * right_x1 + memory * lanes['right']['x1'])
-        lanes['right']['y1'] = int((1 - memory) * right_y1 + memory * lanes['right']['y1'])
-        lanes['right']['x2'] = int((1 - memory) * right_x2 + memory * lanes['right']['x2'])
-        lanes['right']['y2'] = int((1 - memory) * right_y2 + memory * lanes['right']['y2'])
+        if (lanes['right']['x1']+lanes['right']['y1']+lanes['right']['x2']+lanes['right']['y2'] > 0):
+            lanes['right']['x1'] = int((1 - memory) * right_x1 + memory * lanes['right']['x1'])
+            lanes['right']['y1'] = int((1 - memory) * right_y1 + memory * lanes['right']['y1'])
+            lanes['right']['x2'] = int((1 - memory) * right_x2 + memory * lanes['right']['x2'])
+            lanes['right']['y2'] = int((1 - memory) * right_y2 + memory * lanes['right']['y2'])
+        else:
+            lanes['right']['x1'] = int(right_x1)
+            lanes['right']['y1'] = int(right_y1)
+            lanes['right']['x2'] = int(right_x2)
+            lanes['right']['y2'] = int(right_y2)
         cv2.line(img, (lanes['right']['x1'], lanes['right']['y1']), (lanes['right']['x2'], lanes['right']['y2']),
                  color, thickness)
     else:
@@ -263,8 +279,8 @@ if __name__ == '__main__':
                 process_image(test_image)
     else:
         white_output = 'white.mp4'
-        filepath = "solidWhiteRight.mp4"
         filepath = "challenge.mp4"
+        filepath = "solidWhiteRight.mp4"
         clip1 = VideoFileClip(filepath)
         white_clip = clip1.fl_image(process_image)  # NOTE: this function expects color images!!
         white_clip.write_videofile(white_output, audio=False)
